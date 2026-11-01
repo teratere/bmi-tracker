@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthTrack Hub - BMI計算 & 体重トラッカー</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      height: 8px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+      transition: transform 0.1s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+    .needle-pointer {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: 100px 95px;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-16">
+
+  <!-- ヘッダー & ナビゲーション -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+          <i class="fa-solid fa-heart-pulse text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-900 leading-tight">HealthTrack Hub</h1>
+          <p class="text-xs text-slate-500">BMI診断 & 体重ログ推移トラッカー</p>
+        </div>
+      </div>
+
+      <!-- 切替タブボタン -->
+      <div class="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+        <button type="button" id="tab-btn-bmi" onclick="switchTab('bmi')" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 bg-white text-blue-600 shadow-xs">
+          <i class="fa-solid fa-calculator"></i>
+          <span>BMI計算</span>
+        </button>
+        <button type="button" id="tab-btn-tracker" onclick="switchTab('tracker')" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 text-slate-600 hover:text-slate-900">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>体重ログ・グラフ</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 mt-6">
+
+    <!-- ========================================== -->
+    <!-- 画面1: BMI計算シミュレーター              -->
+    <!-- ========================================== -->
+    <div id="section-bmi" class="space-y-6">
+      
+      <!-- 入力パネル -->
+      <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-blue-600"></i>
+            身体データの入力
+          </h2>
+          <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-bold">日本肥満学会基準</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 性別 -->
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">性別</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" id="gender-male" onclick="updateGender('male')" class="py-2.5 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-700 font-bold flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-mars"></i> 男性
+              </button>
+              <button type="button" id="gender-female" onclick="updateGender('female')" class="py-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-50">
+                <i class="fa-solid fa-venus"></i> 女性
+              </button>
+            </div>
+          </div>
+
+          <!-- 年齢 -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">年齢</label>
+              <span class="text-base font-bold text-blue-600"><span id="age-num-display">30</span> 歳</span>
+            </div>
+            <input type="range" id="input-age" min="10" max="99" value="30" oninput="changeParam('age', this.value)" class="w-full cursor-pointer">
+          </div>
+
+          <!-- 身長 -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">身長 (cm)</label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-height-box" step="0.1" value="170.0" oninput="changeParam('height', this.value)" class="w-20 px-2 py-1 text-right font-bold text-blue-600 bg-slate-100 rounded-lg border border-slate-200 text-sm">
+                <span class="text-xs font-bold text-slate-500">cm</span>
+              </div>
+            </div>
+            <input type="range" id="input-height" min="120" max="210" step="0.1" value="170.0" oninput="changeParam('height', this.value)" class="w-full cursor-pointer">
+          </div>
+
+          <!-- 体重 -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">体重 (kg)</label>
+              <div class="flex items-center gap-1">
+                <input type="number" id="input-weight-box" step="0.1" value="65.0" oninput="changeParam('weight', this.value)" class="w-20 px-2 py-1 text-right font-bold text-blue-600 bg-slate-100 rounded-lg border border-slate-200 text-sm">
+                <span class="text-xs font-bold text-slate-500">kg</span>
+              </div>
+            </div>
+            <input type="range" id="input-weight" min="30" max="150" step="0.1" value="65.0" oninput="changeParam('weight', this.value)" class="w-full cursor-pointer">
+          </div>
+        </div>
+      </div>
+
+      <!-- 計算結果カード群 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        <!-- BMIゲージ & スコア -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between items-center text-center">
+          <div class="w-full flex flex-col items-center">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">BMIスコア</p>
+            
+            <!-- SVG半円ゲージ -->
+            <div class="relative w-44 h-24 my-1">
+              <svg viewBox="0 0 200 120" class="w-full h-full overflow-visible">
+                <path d="M 20 100 A 80 80 0 0 1 50.8 45.4" fill="none" stroke="#38bdf8" stroke-width="16" stroke-linecap="round"/>
+                <path d="M 54.8 40.2 A 80 80 0 0 1 113.8 21.2" fill="none" stroke="#10b981" stroke-width="16"/>
+                <path d="M 119.8 22.5 A 80 80 0 0 1 156.6 44.5" fill="none" stroke="#f59e0b" stroke-width="16"/>
+                <path d="M 160.8 49.5 A 80 80 0 0 1 180 100" fill="none" stroke="#ef4444" stroke-width="16" stroke-linecap="round"/>
+                
+                <text x="18" y="118" font-size="9" fill="#94a3b8" font-weight="bold">15</text>
+                <text x="56" y="28" font-size="9" fill="#10b981" font-weight="bold">18.5</text>
+                <text x="106" y="12" font-size="9" fill="#10b981" font-weight="bold">22</text>
+                <text x="140" y="28" font-size="9" fill="#f59e0b" font-weight="bold">25</text>
+                <text x="180" y="118" font-size="9" fill="#94a3b8" font-weight="bold">40</text>
+
+                <g id="bmi-gauge-needle" class="needle-pointer" style="transform: rotate(6deg);">
+                  <circle cx="100" cy="95" r="7" fill="#1e293b"/>
+                  <polygon points="98,95 102,95 100,26" fill="#1e293b"/>
+                </g>
+              </svg>
+            </div>
+
+            <div id="bmi-val" class="text-4xl font-black text-slate-900 tracking-tight">22.5</div>
+            <div id="bmi-status" class="mt-2 inline-block px-4 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+              普通体重
+            </div>
+          </div>
+          <div class="w-full pt-3 mt-3 border-t border-slate-100 text-[11px] text-slate-400">適正範囲: 18.5 〜 24.9</div>
+        </div>
+
+        <!-- 適正体重 & 差分 -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">適正体重 (BMI 22)</p>
+            <div class="flex items-baseline gap-2">
+              <span id="ideal-val" class="text-4xl font-extrabold text-blue-600">63.6</span>
+              <span class="text-sm font-bold text-slate-500">kg</span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-sm bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <span class="text-slate-600">適正体重との差:</span>
+              <span id="diff-val" class="font-bold text-emerald-600">+1.4 kg</span>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mt-2">※有病率が最も低い統計的数値</p>
+        </div>
+
+        <!-- 基礎代謝量 & TDEE -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">基礎代謝量 (BMR)</p>
+            <div class="flex items-baseline gap-2">
+              <span id="bmr-output" class="text-4xl font-extrabold text-indigo-600">1540</span>
+              <span class="text-sm font-bold text-slate-500">kcal/日</span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-sm bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100/50">
+              <span class="text-slate-600">推定消費目安:</span>
+              <span id="tdee-output" class="font-bold text-indigo-700">約2,150 kcal</span>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 mt-2">※ハリス・ベネディクト改訂式準拠</p>
+        </div>
+      </div>
+
+      <!-- 送信バナー -->
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-blue-500/10">
+        <div>
+          <h3 class="font-bold text-lg">この体重をログに記録しますか？</h3>
+          <p class="text-xs text-blue-100 mt-1">現在の入力数値を本日の記録として保存し、グラフ推移に反映させます。</p>
+        </div>
+        <button type="button" onclick="transferToLog()" class="whitespace-nowrap px-6 py-3 bg-white text-blue-700 font-bold rounded-2xl hover:bg-blue-50 transition shadow-sm active:scale-95">
+          <i class="fa-solid fa-circle-plus mr-1"></i> 今日のログへ送信
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 画面2: 体重ログ & 期間推移グラフ           -->
+    <!-- ========================================== -->
+    <div id="section-tracker" class="space-y-6 hidden">
+      
+      <!-- サマリーカード 4連 -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span class="text-xs font-bold text-slate-400 uppercase">最新体重</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="sum-latest" class="text-2xl font-black text-slate-900">-</span>
+            <span class="text-xs font-bold text-slate-500">kg</span>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span class="text-xs font-bold text-slate-400 uppercase">前日比</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="sum-diff-prev" class="text-2xl font-black text-slate-600">-</span>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span class="text-xs font-bold text-slate-400 uppercase">目標(62kg)まで</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="sum-target-diff" class="text-2xl font-black text-slate-900">-</span>
+            <span class="text-xs font-bold text-slate-500">kg</span>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span class="text-xs font-bold text-slate-400 uppercase">通算増減</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="sum-all-diff" class="text-2xl font-black text-slate-900">-</span>
+            <span class="text-xs font-bold text-slate-500">kg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- グラフカード -->
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-blue-600"></i>
+              体重推移グラフ
+            </h2>
+            <p class="text-xs text-slate-500">ブラウザ内ローカル保存の推移データ（期間切り替え対応）</p>
+          </div>
+          <div class="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
+            <button type="button" onclick="changePeriod('7d')" id="pbtn-7d" class="px-3 py-1.5 rounded-xl bg-white text-blue-600 shadow-xs">7日</button>
+            <button type="button" onclick="changePeriod('1m')" id="pbtn-1m" class="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900">1ヶ月</button>
+            <button type="button" onclick="changePeriod('3m')" id="pbtn-3m" class="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900">3ヶ月</button>
+            <button type="button" onclick="changePeriod('all')" id="pbtn-all" class="px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900">全期間</button>
+          </div>
+        </div>
+
+        <div class="relative h-64 sm:h-80 w-full">
+          <canvas id="weightChartCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- 入力フォーム -->
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+        <h3 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <i class="fa-regular fa-calendar-check text-blue-600"></i>
+          新しい体重ログを記録
+        </h3>
+        <form onsubmit="saveLog(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">日付</label>
+            <input type="date" id="form-date" required class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:bg-white focus:outline-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">体重 (kg)</label>
+            <input type="number" id="form-weight" step="0.1" required class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:bg-white focus:outline-blue-500" placeholder="65.0">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 mb-1">メモ (任意)</label>
+            <input type="text" id="form-memo" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-slate-50 focus:bg-white focus:outline-blue-500" placeholder="朝食前、運動後など">
+          </div>
+          <div>
+            <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 active:scale-98 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-check"></i> 記録を保存
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- データ管理（ダウンロード & インストール/復元）パネル -->
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-hard-drive text-blue-600"></i>
+              データ管理（バックアップ・復元）
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">記録したデータをファイルに保存したり、保存したバックアップから復元します</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <!-- CSVダウンロード -->
+          <button type="button" onclick="exportCSV()" class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-blue-400 hover:shadow-xs transition flex flex-col items-start gap-1 text-left group">
+            <div class="flex items-center gap-2 text-blue-600 font-bold text-sm">
+              <i class="fa-solid fa-file-csv text-base"></i>
+              <span>CSVでダウンロード</span>
+            </div>
+            <span class="text-[11px] text-slate-500">Excel・スプレッドシート閲覧用</span>
+          </button>
+
+          <!-- JSONバックアップダウンロード -->
+          <button type="button" onclick="exportJSON()" class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-400 hover:shadow-xs transition flex flex-col items-start gap-1 text-left group">
+            <div class="flex items-center gap-2 text-emerald-600 font-bold text-sm">
+              <i class="fa-solid fa-file-arrow-down text-base"></i>
+              <span>JSONバックアップ保存</span>
+            </div>
+            <span class="text-[11px] text-slate-500">機種変更やデータ保管用</span>
+          </button>
+
+          <!-- バックアップのインストール・復元 -->
+          <label class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-400 hover:shadow-xs transition flex flex-col items-start gap-1 text-left cursor-pointer group">
+            <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
+              <i class="fa-solid fa-file-import text-base"></i>
+              <span>バックアップから復元</span>
+            </div>
+            <span class="text-[11px] text-slate-500">JSONファイルを選択して上書き復元</span>
+            <input type="file" id="json-file-input" accept=".json" onchange="importJSON(event)" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <!-- 履歴テーブル -->
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-list-ul text-slate-400"></i>
+            記録一覧
+          </h3>
+          <button type="button" onclick="injectDummyData()" class="text-xs text-blue-600 hover:underline font-semibold">
+            30日分サンプルデータを追加
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-400 text-xs uppercase font-bold border-b border-slate-100">
+              <tr>
+                <th class="py-3 px-6">日付</th>
+                <th class="py-3 px-6">体重</th>
+                <th class="py-3 px-6">メモ</th>
+                <th class="py-3 px-6 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body" class="divide-y divide-slate-100 text-slate-600 font-medium"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    let gender = 'male';
+    let age = 30;
+    let height = 170.0;
+    let weight = 65.0;
+    let period = '7d';
+    const targetWeight = 62.0;
+
+    const DB_KEY = 'health_track_hub_v1';
+    let logs = [];
+    let chartInstance = null;
+
+    // タブ切り替え制御
+    function switchTab(name) {
+      const bSec = document.getElementById('section-bmi');
+      const tSec = document.getElementById('section-tracker');
+      const bBtn = document.getElementById('tab-btn-bmi');
+      const tBtn = document.getElementById('tab-btn-tracker');
+
+      if (name === 'bmi') {
+        bSec.classList.remove('hidden');
+        tSec.classList.add('hidden');
+        bBtn.className = 'px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 bg-white text-blue-600 shadow-xs';
+        tBtn.className = 'px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 text-slate-600 hover:text-slate-900';
+      } else {
+        bSec.classList.add('hidden');
+        tSec.classList.remove('hidden');
+        tBtn.className = 'px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 bg-white text-blue-600 shadow-xs';
+        bBtn.className = 'px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 text-slate-600 hover:text-slate-900';
+        
+        // グラフの再描画とリサイズ
+        setTimeout(() => {
+          refreshTracker();
+          if (chartInstance) {
+            chartInstance.resize();
+          }
+        }, 30);
+      }
+    }
+
+    // 性別設定
+    function updateGender(g) {
+      gender = g;
+      const m = document.getElementById('gender-male');
+      const f = document.getElementById('gender-female');
+      if (g === 'male') {
+        m.className = 'py-2.5 rounded-xl border-2 border-blue-600 bg-blue-50 text-blue-700 font-bold flex items-center justify-center gap-2 transition';
+        f.className = 'py-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-50';
+      } else {
+        f.className = 'py-2.5 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-700 font-bold flex items-center justify-center gap-2 transition';
+        m.className = 'py-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-bold flex items-center justify-center gap-2 transition hover:bg-slate-50';
+      }
+      recomputeBMI();
+    }
+
+    // パラメータ変更同期
+    function changeParam(type, val) {
+      val = parseFloat(val);
+      if (isNaN(val)) return;
+
+      if (type === 'age') {
+        age = val;
+        document.getElementById('age-num-display').innerText = val;
+        document.getElementById('input-age').value = val;
+      } else if (type === 'height') {
+        height = val;
+        document.getElementById('input-height-box').value = val.toFixed(1);
+        document.getElementById('input-height').value = val;
+      } else if (type === 'weight') {
+        weight = val;
+        document.getElementById('input-weight-box').value = val.toFixed(1);
+        document.getElementById('input-weight').value = val;
+      }
+      recomputeBMI();
+    }
+
+    // BMI計算・判定
+    function recomputeBMI() {
+      const hm = height / 100;
+      const bmi = weight / (hm * hm);
+      const ideal = 22 * (hm * hm);
+      const diff = weight - ideal;
+
+      document.getElementById('bmi-val').innerText = bmi.toFixed(1);
+      const status = document.getElementById('bmi-status');
+      if (bmi < 18.5) {
+        status.innerText = '低体重 (やせ型)';
+        status.className = 'mt-2 inline-block px-4 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800';
+      } else if (bmi < 25) {
+        status.innerText = '普通体重';
+        status.className = 'mt-2 inline-block px-4 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+      } else if (bmi < 30) {
+        status.innerText = '肥満 (1度)';
+        status.className = 'mt-2 inline-block px-4 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+      } else {
+        status.innerText = '肥満 (2度以上)';
+        status.className = 'mt-2 inline-block px-4 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800';
+      }
+
+      // ゲージ針の回転 (-90度〜90度)
+      let needleDeg = 0;
+      if (bmi <= 22) {
+        needleDeg = -90 + (Math.max(15, bmi) - 15) / 7 * 90;
+      } else {
+        needleDeg = (Math.min(40, bmi) - 22) / 18 * 90;
+      }
+      document.getElementById('bmi-gauge-needle').style.transform = `rotate(${needleDeg}deg)`;
+
+      // 適正体重
+      document.getElementById('ideal-val').innerText = ideal.toFixed(1);
+      const diffEl = document.getElementById('diff-val');
+      const sign = diff >= 0 ? '+' : '';
+      diffEl.innerText = `${sign}${diff.toFixed(1)} kg`;
+
+      // 基礎代謝量 (Harris-Benedict改訂式)
+      let bmr = (gender === 'male')
+        ? (13.397 * weight + 4.799 * height - 5.677 * age + 88.362)
+        : (9.247 * weight + 3.098 * height - 4.33 * age + 447.593);
+      bmr = Math.round(bmr);
+      document.getElementById('bmr-output').innerText = bmr;
+      document.getElementById('tdee-output').innerText = `約${Math.round(bmr * 1.4).toLocaleString()} kcal`;
+    }
+
+    // ログ画面へ現在の体重を転送
+    function transferToLog() {
+      document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+      document.getElementById('form-weight').value = weight.toFixed(1);
+      document.getElementById('form-memo').value = 'BMI計算から送信';
+      switchTab('tracker');
+    }
+
+    // ローカルストレージ読み書き
+    function loadLogs() {
+      const data = localStorage.getItem(DB_KEY);
+      logs = data ? JSON.parse(data) : [];
+    }
+
+    function saveLogs() {
+      localStorage.setItem(DB_KEY, JSON.stringify(logs));
+      refreshTracker();
+    }
+
+    // 記録保存
+    function saveLog(e) {
+      e.preventDefault();
+      const date = document.getElementById('form-date').value;
+      const w = parseFloat(document.getElementById('form-weight').value);
+      const memo = document.getElementById('form-memo').value.trim();
+
+      const idx = logs.findIndex(l => l.date === date);
+      if (idx >= 0) {
+        logs[idx].weight = w;
+        logs[idx].memo = memo;
+      } else {
+        logs.push({ date, weight: w, memo });
+      }
+
+      logs.sort((a, b) => new Date(a.date) - new Date(b.date));
+      saveLogs();
+      document.getElementById('form-memo').value = '';
+    }
+
+    // 記録削除
+    function removeLog(date) {
+      logs = logs.filter(l => l.date !== date);
+      saveLogs();
+    }
+
+    // 期間変更
+    function changePeriod(p) {
+      period = p;
+      ['7d', '1m', '3m', 'all'].forEach(id => {
+        const btn = document.getElementById(`pbtn-${id}`);
+        if (id === p) {
+          btn.className = 'px-3 py-1.5 rounded-xl bg-white text-blue-600 shadow-xs font-bold';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold';
+        }
+      });
+      renderLineChart();
+    }
+
+    // トラッカー更新
+    function refreshTracker() {
+      if (logs.length > 0) {
+        const latest = logs[logs.length - 1];
+        document.getElementById('sum-latest').innerText = latest.weight.toFixed(1);
+
+        if (logs.length >= 2) {
+          const prev = logs[logs.length - 2];
+          const diff = latest.weight - prev.weight;
+          const s = diff > 0 ? '+' : '';
+          const el = document.getElementById('sum-diff-prev');
+          el.innerText = `${s}${diff.toFixed(1)} kg`;
+          el.className = diff > 0 ? 'text-2xl font-black text-rose-500' : 'text-2xl font-black text-emerald-600';
+        } else {
+          document.getElementById('sum-diff-prev').innerText = '±0.0';
+        }
+
+        const tDiff = latest.weight - targetWeight;
+        document.getElementById('sum-target-diff').innerText = `${tDiff > 0 ? '+' : ''}${tDiff.toFixed(1)}`;
+
+        const aDiff = latest.weight - logs[0].weight;
+        document.getElementById('sum-all-diff').innerText = `${aDiff > 0 ? '+' : ''}${aDiff.toFixed(1)}`;
+      } else {
+        document.getElementById('sum-latest').innerText = '-';
+        document.getElementById('sum-diff-prev').innerText = '-';
+        document.getElementById('sum-target-diff').innerText = '-';
+        document.getElementById('sum-all-diff').innerText = '-';
+      }
+
+      // テーブル描画
+      const tbody = document.getElementById('log-table-body');
+      tbody.innerHTML = '';
+      const rev = [...logs].reverse();
+
+      if (rev.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-400">データがありません</td></tr>`;
+      } else {
+        rev.forEach(item => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-slate-50 transition';
+          row.innerHTML = `
+            <td class="py-3 px-6 font-bold text-slate-800">${item.date}</td>
+            <td class="py-3 px-6 font-bold text-blue-600">${item.weight.toFixed(1)} kg</td>
+            <td class="py-3 px-6 text-slate-500 text-xs">${item.memo || '-'}</td>
+            <td class="py-3 px-6 text-right">
+              <button type="button" onclick="removeLog('${item.date}')" class="text-slate-400 hover:text-rose-500 p-1" title="削除">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      renderLineChart();
+    }
+
+    // Chart.js 描画
+    function renderLineChart() {
+      const canvas = document.getElementById('weightChartCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      const now = new Date();
+      let filtered = [...logs];
+      if (period === '7d') {
+        const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        filtered = logs.filter(l => new Date(l.date) >= d);
+      } else if (period === '1m') {
+        const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        filtered = logs.filter(l => new Date(l.date) >= d);
+      } else if (period === '3m') {
+        const d = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        filtered = logs.filter(l => new Date(l.date) >= d);
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: filtered.map(l => l.date.slice(5)),
+          datasets: [
+            {
+              label: '体重 (kg)',
+              data: filtered.map(l => l.weight),
+              borderColor: '#2563eb',
+              backgroundColor: 'rgba(37, 99, 235, 0.08)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+              pointBackgroundColor: '#2563eb'
+            },
+            {
+              label: '目標体重 (62kg)',
+              data: filtered.map(() => targetWeight),
+              borderColor: '#f59e0b',
+              borderWidth: 1.5,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { grid: { display: false } },
+            y: { grid: { color: '#f1f5f9' } }
+          }
+        }
+      });
+    }
+
+    // サンプルデータ投入
+    function injectDummyData() {
+      const base = 66.5;
+      const samples = [];
+      const now = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        samples.push({
+          date: d.toISOString().split('T')[0],
+          weight: Math.round((base + (Math.random() - 0.58) * 2.0) * 10) / 10,
+          memo: i % 7 === 0 ? 'ウォーキング30分' : ''
+        });
+      }
+      logs = samples;
+      saveLogs();
+    }
+
+    // CSVエクスポート（Excel用 UTF-8 BOM付き）
+    function exportCSV() {
+      if (logs.length === 0) {
+        alert('出力できるログデータがありません。');
+        return;
+      }
+      let csvContent = '\uFEFF日付,体重(kg),メモ\n';
+      logs.forEach(item => {
+        const escapedMemo = (item.memo || '').replace(/"/g, '""');
+        csvContent += `"${item.date}",${item.weight},"${escapedMemo}"\n`;
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `weight_log_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // JSONバックアップエクスポート
+    function exportJSON() {
+      if (logs.length === 0) {
+        alert('出力できるログデータがありません。');
+        return;
+      }
+      const backupData = {
+        app: 'HealthTrack Hub',
+        exportDate: new Date().toISOString(),
+        records: logs
+      };
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `healthtrack_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // JSONバックアップのインポート（インストール / 復元）
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          let importedRecords = [];
+
+          if (Array.isArray(parsed)) {
+            importedRecords = parsed;
+          } else if (parsed && Array.isArray(parsed.records)) {
+            importedRecords = parsed.records;
+          } else {
+            alert('有効なバックアップファイル形式ではありません。');
+            return;
+          }
+
+          // フォーマット検証
+          const validRecords = importedRecords.filter(r => r && r.date && typeof r.weight === 'number');
+          if (validRecords.length === 0) {
+            alert('ファイル内に有効な体重記録が見つかりませんでした。');
+            return;
+          }
+
+          logs = validRecords;
+          logs.sort((a, b) => new Date(a.date) - new Date(b.date));
+          saveLogs();
+          alert(`${validRecords.length}件の記録を復元（インストール）しました！`);
+        } catch (err) {
+          alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+        }
+        // inputをリセット
+        event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    // 初期化
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+      loadLogs();
+      recomputeBMI();
+    });
+  </script>
+</body>
+</html>
